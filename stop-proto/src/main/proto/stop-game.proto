@@ -1,0 +1,105 @@
+syntax = "proto3";
+
+package stopgame;
+
+option java_package = "com.distribuidos.stop";
+option java_multiple_files = true;
+
+// Serviço central do jogo
+service StopGameService {
+  // Conexão e entrada no lobby
+  rpc Conectar (RequisicaoEntrada) returns (RespostaEntrada);
+
+  // Escuta contínua de eventos do jogo (Server Streaming)
+  rpc OuvirEventos (IdentificadorJogador) returns (stream EventoJogo);
+
+  // Jogador sinaliza que está pronto para iniciar a partida
+  rpc MarcarPronto (IdentificadorJogador) returns (Confirmacao);
+
+  // Chamada remota para acionar o STOP
+  rpc DeclararStop (IdentificadorJogador) returns (RespostaStop);
+
+  // Envio final das palavras digitadas pelo jogador
+  rpc SubmeterPalavras (SubmissaoRespostas) returns (Confirmacao);
+
+  // Envio dos votos da etapa de validação coletiva
+  rpc SubmeterVotos (SubmissaoVotos) returns (Confirmacao);
+}
+
+// --- Mensagens de Entrada e Controle ---
+
+message IdentificadorJogador {
+  string id = 1;
+}
+
+message RequisicaoEntrada {
+  string nome = 1;
+}
+
+message RespostaEntrada {
+  string id_jogador = 1;
+  bool sucesso = 2;
+  string mensagem = 3;
+}
+
+message Confirmacao {
+  bool sucesso = 1;
+  string mensagem = 2;
+}
+
+message RespostaStop {
+  bool foi_o_primeiro = 1; // True se esta thread venceu a corrida do STOP
+  string mensagem = 2;
+}
+
+// --- Submissão de Dados ---
+
+message SubmissaoRespostas {
+  string id_jogador = 1;
+  map<string, string> respostas_por_categoria = 2; // Ex: {"NOME": "Ana", "COR": "Azul"}
+}
+
+message SubmissaoVotos {
+  string id_jogador_votante = 1;
+  // Mapeia o id do jogador avaliado para a lista de categorias aceitas/rejeitadas
+  repeated VotoItem votos = 2;
+}
+
+message VotoItem {
+  string id_jogador_alvo = 1;
+  string categoria = 2;
+  bool aprovado = 3;
+}
+
+// --- Eventos Transmitidos pelo Servidor via Streaming ---
+
+enum TipoEvento {
+  JOGADOR_ENTROU = 0;
+  INICIO_RODADA = 1;
+  STOP_ACIONADO = 2;
+  INICIO_VALIDACAO = 3;
+  FIM_RODADA = 4;
+  FIM_JOGO = 5;
+}
+
+message EventoJogo {
+  TipoEvento tipo = 1;
+  string mensagem = 2;
+
+  // Dados contextuais de acordo com o tipo de evento
+  string letra_sorteada = 3;
+  repeated string categorias = 4;
+  string jogador_que_parou = 5;
+
+  // Mapa com todas as respostas consolidadas para a fase de validação
+  repeated RespostaConsolidada todas_respostas = 6;
+
+  // Placar consolidado enviado no fim da rodada/jogo
+  map<string, int32> pontuacao_geral = 7;
+}
+
+message RespostaConsolidada {
+  string id_jogador = 1;
+  string nome_jogador = 2;
+  map<string, string> respostas = 3;
+}
