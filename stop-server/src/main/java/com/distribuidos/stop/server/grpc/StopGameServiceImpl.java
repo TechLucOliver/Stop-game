@@ -137,8 +137,10 @@ public class StopGameServiceImpl extends StopGameServiceGrpc.StopGameServiceImpl
      */
     @Override
     public void submeterVotos(SubmissaoVotos request, StreamObserver<Confirmacao> responseObserver) {
+        String idVotante = request.getIdJogadorVotante();
+
         for (VotoItem voto : request.getVotosList()){
-            room.registrarVoto(voto.getIdJogadorAlvo(), voto.getCategoria(), voto.getAprovado());
+            room.registrarVoto(idVotante, voto.getIdJogadorAlvo(), voto.getCategoria(), voto.getAprovado());
         }
 
         Confirmacao confirmacao = Confirmacao.newBuilder()

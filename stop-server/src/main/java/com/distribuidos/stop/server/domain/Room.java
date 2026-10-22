@@ -3,8 +3,7 @@ package com.distribuidos.stop.server.domain;
 import com.distribuidos.stop.server.concurrency.StopLockManeger;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -46,9 +45,19 @@ public class Room {
     private final List<RoomListener> listeners = new CopyOnWriteArrayList<>();
     private final StopLockManeger lockManeger = new StopLockManeger();
 
+    // jogadores já submeteram seus votos na rodada atual
+    private final Set<String> jogadoresQueVotaram = ConcurrentHashMap.newKeySet();
+
     private final AtomicReference<GameState> estadoAtual = new AtomicReference<>(GameState.LOBBY);
     private volatile Round rodadaAtual;
     private int contadorRodadas = 0;
+
+    /**
+     * Pool de threads dedicado para agendamento temporal de eventos no servidor.
+     * Garante execução pontual de barreiras sem bloquear threads de rede do Netty.
+     */
+    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    private ScheduledFuture<?> tarefaTimeoutValidacao;
 
     public void adicionarListener(RoomListener listener){
         this.listeners.add(listener);
@@ -122,9 +131,11 @@ public class Room {
         String letraSorteada = letrasDisponiveis.remove(0);
 
         this.rodadaAtual = new Round(contadorRodadas, letraSorteada, CATEGORIAS_PADRAO);
+        this.jogadoresQueVotaram.clear();
         this.lockManeger.reiniciar();
         this.estadoAtual.set(GameState.RODADA_ATIVA);
 
+        System.out.printf("[RODADA %d] Iniciada com a letra '%s'.%n", contadorRodadas, letraSorteada);
         listeners.forEach(lis -> lis.onInicioRodada(this.rodadaAtual));
     }
 
@@ -140,7 +151,11 @@ public class Room {
         if (venceuCorrida){
             Player p = jogadores.get(idJogador);
             String nome = (p != null) ? p.getNome() : "Desconhecido";
+            System.out.printf("[STOP] Acionado por %s. Janela de carência de 5s iniciada...%n", nome);
             listeners.forEach(lis -> lis.onStopAcionado(nome));
+
+            // Dispara janela de tolerância: 5 segundos para que todos submetam suas palavras
+            scheduler.schedule(this::avancarParaValidacao, 5, TimeUnit.SECONDS);
         }
 
         return venceuCorrida;
@@ -163,18 +178,34 @@ public class Room {
      */
     public synchronized void avancarParaValidacao(){
         if (estadoAtual.compareAndSet(GameState.RODADA_ATIVA, GameState.VALIDACAO)){
+            System.out.println("[ESTADO] Transição para VALIDACAO. Timeout de segurança: 15s.");
             listeners.forEach(lis -> lis.onInicioValidacao(rodadaAtual));
+
+            // Barreira com Timeout defensivo: encerra a validação em 15 segundos se nem todos votarem
+            tarefaTimeoutValidacao = scheduler.schedule(this::finalizarValidacaoECalcularPontos, 15, TimeUnit.SECONDS);
         }
     }
 
     /**
      * Registra o voto de um cliente avaliando a resposta de outro.
      */
-    public boolean registrarVoto(String idJogadorAlvo, String categoria, boolean aprovado){
+    public synchronized boolean registrarVoto(String idJogadorVotante, String idJogadorAlvo, String categoria, boolean aprovado){
         if (estadoAtual.get() != GameState.VALIDACAO || rodadaAtual == null){
             return false;
         }
         rodadaAtual.registrarVoto(idJogadorAlvo, categoria, aprovado);
+        jogadoresQueVotaram.add(idJogadorVotante);
+
+        // Se todos os nós conectados já enviaram seus votos, encerra a espera antecipadamente
+        long totalConectados = jogadores.values().stream().filter(Player::isConectado).count();
+        if (jogadoresQueVotaram.size() >= totalConectados){
+            System.out.println("[BARREIRA] Todos os clientes votaram. Encerrando validação imediatamente.");
+            if (tarefaTimeoutValidacao != null && !tarefaTimeoutValidacao.isDone()){
+                tarefaTimeoutValidacao.cancel(false);
+            }
+            finalizarValidacaoECalcularPontos();
+        }
+
         return true;
     }
 
@@ -187,6 +218,7 @@ public class Room {
             return;
         }
 
+        System.out.println("[APURAÇÃO] Calculando pontuações da rodada...");
         Set<String> jogadoresAtivos = jogadores.keySet();
 
         // Executa o cálculo determinístico através do ScoreCalculator
@@ -204,14 +236,28 @@ public class Room {
         }
 
         listeners.forEach(lis -> lis.onFimRodada(rodadaAtual, totalRodada, placarGeral));
+
+        scheduler.schedule(() -> {
+            if (contadorRodadas < TOTAL_RODADAS){
+                iniciarNovaRodada();
+            }else {
+                finalizarPartida();
+            }
+        }, 7, TimeUnit.SECONDS);
     }
 
     private void finalizarPartida(){
         this.estadoAtual.set(GameState.FIM_JOGO);
+        System.out.println("[ESTADO] Partida encerrada! Placar consolidado transmitido.");
         Map<String, Integer> placarFinal = new HashMap<>();
         jogadores.forEach((id, p) -> placarFinal.put(id, p.getPontuacaoTotal()));
         listeners.forEach(lis -> lis.onFimJogo(placarFinal));
     }
 
-
+    /**
+     * Encerra o agendador de threads no shutdown do servidor.
+     */
+    public void desligarAgendador(){
+        this.scheduler.shutdownNow();
+    }
 }
