@@ -6,6 +6,7 @@ import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -147,6 +148,19 @@ public class GameGrpcClient {
         }catch (InterruptedException e){
             channel.shutdownNow();
         }
+    }
+
+    /**
+     * Submete a lista de votos de validação para as palavras dos adversários.
+     */
+    public boolean submeterVotos(List<VotoItem> votos){
+        SubmissaoVotos request = SubmissaoVotos.newBuilder()
+                .setIdJogadorVotante(this.idJogador)
+                .addAllVotos(votos)
+                .build();
+
+        Confirmacao resposta = blockingStub.submeterVotos(request);
+        return resposta.getSucesso();
     }
 
     public String getIdJogador() {
