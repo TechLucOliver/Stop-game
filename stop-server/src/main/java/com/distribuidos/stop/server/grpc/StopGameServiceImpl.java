@@ -163,11 +163,12 @@ public class StopGameServiceImpl extends StopGameServiceGrpc.StopGameServiceImpl
     }
 
     @Override
-    public void onInicioRodada(Round rodada) {
+    public void onInicioRodada(Round rodada, int duracaoSegundos) {
         transmitir(EventoJogo.newBuilder()
                 .setTipo(TipoEvento.INICIO_RODADA)
                 .setLetraSorteada(rodada.getLetra())
                 .addAllCategorias(rodada.getCategorias())
+                .setDuracaoSegundos(duracaoSegundos)
                 .setMensagem("Rodada iniciada com a letra: "+ rodada.getLetra())
                 .build());
     }
@@ -182,7 +183,15 @@ public class StopGameServiceImpl extends StopGameServiceGrpc.StopGameServiceImpl
     }
 
     @Override
-    public void onInicioValidacao(Round rodada) {
+    public void onTempoRodadaEsgotado() {
+        transmitir(EventoJogo.newBuilder()
+                .setTipo(TipoEvento.TEMPO_RODADA_ESGOTADO)
+                .setMensagem("O tempo para preencher as respostas acabou.")
+                .build());
+    }
+
+    @Override
+    public void onInicioValidacao(Round rodada, int duracaoSegundos) {
         // Constrói a lista com as respostas submetidas por todos os jogadores
         List<RespostaConsolidada> respostasConsolidadas = new ArrayList<>();
 
@@ -200,6 +209,7 @@ public class StopGameServiceImpl extends StopGameServiceGrpc.StopGameServiceImpl
 
         transmitir(EventoJogo.newBuilder()
                 .setTipo(TipoEvento.INICIO_VALIDACAO)
+                .setDuracaoSegundos(duracaoSegundos)
                 .addAllTodasRespostas(respostasConsolidadas)
                 .setMensagem("Inicio da fase de validação das respostas.")
                 .build());

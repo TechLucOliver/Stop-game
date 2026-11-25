@@ -35,6 +35,15 @@ public class Room {
 
     private static final int MINIMO_JOGADORES = 2;
     private static final int TOTAL_RODADAS = 3;
+    private static final int TEMPO_RODADA_MINIMO_SEGUNDOS = 30;
+    private static final int TEMPO_RODADA_MAXIMO_SEGUNDOS = 60;
+    private static final int TEMPO_VOTACAO_MINIMO_SEGUNDOS = 15;
+    private static final int TEMPO_VOTACAO_MAXIMO_SEGUNDOS = 30;
+
+    private final Random random = new Random();
+    private volatile int tempoRodadaAtualSegundos;
+    private volatile int tempoVotacaoAtualSegundos;
+    private ScheduledFuture<?> tarefaTimeoutRodada;
     private static final List<String> CATEGORIAS_PADRAO = List.of("NOME", "CEP", "ANIMAL", "OBJETO", "COR");
 
     // Letras disponíveis para sorteio sem repetição
@@ -128,6 +137,10 @@ public class Room {
         }
 
         contadorRodadas++;
+        tempoRodadaAtualSegundos =
+                numeroAleatorioInclusivo(TEMPO_RODADA_MINIMO_SEGUNDOS, TEMPO_RODADA_MAXIMO_SEGUNDOS);
+        tempoVotacaoAtualSegundos =
+                numeroAleatorioInclusivo(TEMPO_VOTACAO_MINIMO_SEGUNDOS, TEMPO_VOTACAO_MAXIMO_SEGUNDOS);
         Collections.shuffle(letrasDisponiveis);
         String letraSorteada = letrasDisponiveis.remove(0);
 
@@ -137,13 +150,18 @@ public class Room {
         this.estadoAtual.set(GameState.RODADA_ATIVA);
 
         System.out.printf("[RODADA %d] Iniciada com a letra '%s'.%n", contadorRodadas, letraSorteada);
-        listeners.forEach(lis -> lis.onInicioRodada(this.rodadaAtual));
+        listeners.forEach(lis -> lis.onInicioRodada(this.rodadaAtual, tempoRodadaAtualSegundos));
+        tarefaTimeoutRodada = scheduler.schedule(
+                this::encerrarRodadaPorTempo,
+                tempoRodadaAtualSegundos,
+                TimeUnit.SECONDS
+        );
     }
 
     /**
      * Ponto Crítico de Concorrência: Processa a disputa atômica do STOP.
      */
-    public boolean processarStop(String idJogador){
+    public synchronized boolean processarStop(String idJogador){
         if (estadoAtual.get() != GameState.RODADA_ATIVA){
             return false;
         }
@@ -151,6 +169,7 @@ public class Room {
         boolean venceuCorrida = lockManeger.tentarAcionarStop(idJogador);
         if (venceuCorrida){
             Player p = jogadores.get(idJogador);
+            tarefaTimeoutRodada.cancel(false);
             String nome = (p != null) ? p.getNome() : "Desconhecido";
             System.out.printf("[STOP] Acionado por %s. Janela de carência de 5s iniciada...%n", nome);
             listeners.forEach(lis -> lis.onStopAcionado(nome));
@@ -180,7 +199,12 @@ public class Room {
     public synchronized void avancarParaValidacao(){
         if (estadoAtual.compareAndSet(GameState.RODADA_ATIVA, GameState.VALIDACAO)){
             System.out.println("[ESTADO] Transição para VALIDACAO. Timeout de segurança: 15s.");
-            listeners.forEach(lis -> lis.onInicioValidacao(rodadaAtual));
+            listeners.forEach(lis -> lis.onInicioValidacao(rodadaAtual, tempoVotacaoAtualSegundos));
+            tarefaTimeoutValidacao = scheduler.schedule(
+                    this::finalizarValidacaoECalcularPontos,
+                    tempoVotacaoAtualSegundos,
+                    TimeUnit.SECONDS
+            );
 
             // Barreira com Timeout defensivo: encerra a validação em 15 segundos se nem todos votarem
             tarefaTimeoutValidacao = scheduler.schedule(this::finalizarValidacaoECalcularPontos, 15, TimeUnit.SECONDS);
@@ -260,5 +284,25 @@ public class Room {
      */
     public void desligarAgendador(){
         this.scheduler.shutdownNow();
+    }
+
+    private int numeroAleatorioInclusivo(int minimo, int maximo) {
+        return random.nextInt(maximo - minimo + 1) + minimo;
+    }
+
+    private void encerrarRodadaPorTempo() {
+        synchronized (this) {
+            if (estadoAtual.get() != GameState.RODADA_ATIVA || lockManeger.getStopAcionado()) {
+                return;
+            }
+
+            // Marca a rodada como encerrada para que um STOP posterior não vença.
+            lockManeger.tentarAcionarStop("__TEMPO_ESGOTADO__");
+        }
+
+        listeners.forEach(RoomListener::onTempoRodadaEsgotado);
+
+        // Mantém uma janela curta para submissões que já estavam a caminho.
+        scheduler.schedule(this::avancarParaValidacao, 5, TimeUnit.SECONDS);
     }
 }
