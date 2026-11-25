@@ -162,7 +162,9 @@ public class Room {
      * Ponto Crítico de Concorrência: Processa a disputa atômica do STOP.
      */
     public synchronized boolean processarStop(String idJogador){
-        if (estadoAtual.get() != GameState.RODADA_ATIVA){
+        if (estadoAtual.get() != GameState.RODADA_ATIVA
+                || !jogadores.containsKey(idJogador)
+                || !respostasCompletas(idJogador)){
             return false;
         }
 
@@ -184,8 +186,10 @@ public class Room {
     /**
      * Coleta as palavras preenchidas pelo jogador durante a rodada ativa.
      */
-    public boolean submeterPalavras(String idJogador, Map<String, String> respostas){
-        if (rodadaAtual == null){
+    public synchronized  boolean submeterPalavras(String idJogador, Map<String, String> respostas){
+        if (estadoAtual.get() != GameState.RODADA_ATIVA
+                || !jogadores.containsKey(idJogador)
+                || !respostasContemTodasAsCategorias(respostas)){
             return false;
         }
 
@@ -304,5 +308,38 @@ public class Room {
 
         // Mantém uma janela curta para submissões que já estavam a caminho.
         scheduler.schedule(this::avancarParaValidacao, 5, TimeUnit.SECONDS);
+    }
+
+    private boolean respostasCompletas(String idJogador) {
+        if (rodadaAtual == null) {
+            return false;
+        }
+
+        Map<String, String> respostas =
+                rodadaAtual.getRespostasPorJogador().get(idJogador);
+
+        if (respostas == null) {
+            return false;
+        }
+
+        return rodadaAtual.getCategorias().stream().allMatch(categoria -> {
+            String chave = categoria.trim().toUpperCase();
+            String resposta = respostas.get(chave);
+
+            return resposta != null && !resposta.isBlank();
+        });
+    }
+
+    private boolean respostasContemTodasAsCategorias(Map<String, String> respostas) {
+        if (rodadaAtual == null || respostas == null) {
+            return false;
+        }
+
+        return rodadaAtual.getCategorias().stream().allMatch(categoria -> {
+            String chave = categoria.trim().toUpperCase();
+            String resposta = respostas.get(chave);
+
+            return resposta != null && !resposta.isBlank();
+        });
     }
 }
