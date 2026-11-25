@@ -42,6 +42,10 @@ public class StopGameUI extends JFrame {
     // Componentes da Tela de Jogo (RODADA)
     private JLabel lblLetraSorteada;
     private JLabel lblStatusRodada;
+    private JLabel lblTemporizadorRodada;
+    private JLabel lblTemporizadorVotacao;
+    private javax.swing.Timer timerContagem;
+    private long fimTemporizadorMs;
     private JPanel painelCategorias;
     private JButton btnStop;
 
@@ -131,7 +135,7 @@ public class StopGameUI extends JFrame {
         JPanel painel = new JPanel(new BorderLayout(15, 15));
         painel.setBorder(new EmptyBorder(20, 30, 20, 30));
 
-        JPanel topo = new JPanel(new GridLayout(2, 1));
+        JPanel topo = new JPanel(new GridLayout(3, 1));
         lblLetraSorteada = new JLabel("LETRA: ?", SwingConstants.CENTER);
         lblLetraSorteada.setFont(new Font("Arial", Font.BOLD, 42));
         lblLetraSorteada.setForeground(new Color(220, 53, 69));
@@ -140,6 +144,12 @@ public class StopGameUI extends JFrame {
         lblStatusRodada.setFont(new Font("Arial", Font.PLAIN, 14));
         topo.add(lblLetraSorteada);
         topo.add(lblStatusRodada);
+
+        lblTemporizadorRodada = new JLabel("Tempo da rodada: --:--", SwingConstants.CENTER);
+        lblTemporizadorRodada.setFont(new Font("Arial", Font.BOLD, 18));
+        topo.add(lblLetraSorteada);
+        topo.add(lblStatusRodada);
+        topo.add(lblTemporizadorRodada);
 
         painelCategorias = new JPanel(new GridBagLayout());
         JScrollPane scroll = new JScrollPane(painelCategorias);
@@ -173,15 +183,22 @@ public class StopGameUI extends JFrame {
         painelItensValidacao.setLayout(new BoxLayout(painelItensValidacao, BoxLayout.Y_AXIS));
         JScrollPane scroll = new JScrollPane(painelItensValidacao);
 
+        lblTemporizadorVotacao = new JLabel("Tempo para votar: --:--", SwingConstants.CENTER);
+        lblTemporizadorVotacao.setFont(new Font("Arial", Font.BOLD, 16));
+
         btnEnviarVotos = new JButton("Confirmar Votos");
         btnEnviarVotos.setFont(new Font("Arial", Font.BOLD, 16));
         btnEnviarVotos.setBackground(new Color(26, 115, 232));
         btnEnviarVotos.setForeground(Color.WHITE);
         btnEnviarVotos.addActionListener(e -> acaoEnviarVotos());
 
+        JPanel rodapeValidacao = new JPanel(new BorderLayout(8, 8));
+        rodapeValidacao.add(lblTemporizadorVotacao, BorderLayout.NORTH);
+        rodapeValidacao.add(btnEnviarVotos, BorderLayout.SOUTH);
+
         painel.add(lblTitulo, BorderLayout.NORTH);
         painel.add(scroll, BorderLayout.CENTER);
-        painel.add(btnEnviarVotos, BorderLayout.SOUTH);
+        painel.add(rodapeValidacao, BorderLayout.SOUTH);
 
         return painel;
     }
@@ -294,10 +311,17 @@ public class StopGameUI extends JFrame {
             switch (evento.getTipo()) {
                 case INICIO_RODADA:
                     montarTelaDeJogo(evento.getLetraSorteada(), evento.getCategoriasList());
+                    iniciarTemporizador(
+                            lblTemporizadorRodada,
+                            "Tempo da rodada: ",
+                            evento.getDuracaoSegundos()
+                    );
                     cardLayout.show(painelPrincipal, "JOGO");
                     break;
 
                 case STOP_ACIONADO:
+                    pararTemporizador();
+                    lblTemporizadorRodada.setText("Tempo pausado!");
                     lblStatusRodada.setText("STOP acionado por: " + evento.getJogadorQueParou() + "! Finalizando...");
                     btnStop.setEnabled(false);
                     // Garante submissão das palavras que já foram digitadas
@@ -306,13 +330,27 @@ public class StopGameUI extends JFrame {
 
                 case INICIO_VALIDACAO:
                     montarTelaValidacao(evento.getTodasRespostasList());
+                    iniciarTemporizador(
+                            lblTemporizadorVotacao,
+                            "Tempo para votar: ",
+                            evento.getDuracaoSegundos()
+                    );
                     cardLayout.show(painelPrincipal, "VALIDACAO");
                     break;
 
                 case FIM_RODADA:
                 case FIM_JOGO:
+                    pararTemporizador();
                     montarTelaPlacar(evento.getPontuacaoGeralMap(), evento.getTipo() == TipoEvento.FIM_JOGO);
                     cardLayout.show(painelPrincipal, "PLACAR");
+                    break;
+
+                case TEMPO_RODADA_ESGOTADO:
+                    pararTemporizador();
+                    lblTemporizadorRodada.setText("Tempo da rodada: 00:00");
+                    lblStatusRodada.setText("Tempo esgotado! Preparando validação...");
+                    btnStop.setEnabled(false);
+                    new Thread(() -> rede.submeterPalavras(coletarRespostasLocais())).start();
                     break;
 
                 default:
@@ -428,6 +466,42 @@ public class StopGameUI extends JFrame {
             this.idJogadorAlvo = idJogadorAlvo;
             this.categoria = categoria;
             this.chkAprovado = chkAprovado;
+        }
+    }
+
+    private void iniciarTemporizador(JLabel label, String prefixo, int duracaoSegundos) {
+        pararTemporizador();
+
+        fimTemporizadorMs = System.currentTimeMillis() + duracaoSegundos * 1000L;
+        atualizarTextoTemporizador(label, prefixo);
+
+        timerContagem = new javax.swing.Timer(250, e -> {
+            long restanteMs = fimTemporizadorMs - System.currentTimeMillis();
+            atualizarTextoTemporizador(label, prefixo);
+
+            if (restanteMs <= 0) {
+                pararTemporizador();
+            }
+        });
+
+        timerContagem.start();
+    }
+
+    private void atualizarTextoTemporizador(JLabel label, String prefixo) {
+        long restanteSegundos = Math.max(
+                0,
+                (fimTemporizadorMs - System.currentTimeMillis() + 999) / 1000
+        );
+        long minutos = restanteSegundos / 60;
+        long segundos = restanteSegundos % 60;
+
+        label.setText(String.format("%s%02d:%02d", prefixo, minutos, segundos));
+    }
+
+    private void pararTemporizador() {
+        if (timerContagem != null) {
+            timerContagem.stop();
+            timerContagem = null;
         }
     }
 
