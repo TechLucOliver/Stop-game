@@ -12,6 +12,9 @@ import java.awt.*;
 import java.util.*;
 import java.util.List;
 
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+
 /**
  * ============================================================================
  * INTERFACE GRÁFICA DESKTOP (JAVA SWING MULTIPLAYER)
@@ -259,6 +262,16 @@ public class StopGameUI extends JFrame {
     }
 
     private void acaoDispararStop() {
+        if (!respostasCompletas()) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Preencha todas as categorias antes de acionar STOP.",
+                    "Respostas incompletas",
+                    JOptionPane.WARNING_MESSAGE
+            );
+            return;
+        }
+
         btnStop.setEnabled(false);
         lblStatusRodada.setText("Enviando STOP ao servidor...");
 
@@ -362,7 +375,7 @@ public class StopGameUI extends JFrame {
     private void montarTelaDeJogo(String letra, List<String> categorias) {
         lblLetraSorteada.setText("LETRA: [ " + letra + " ]");
         lblStatusRodada.setText("Preencha as palavras e aperte STOP quando terminar!");
-        btnStop.setEnabled(true);
+        btnStop.setEnabled(false);
 
         painelCategorias.removeAll();
         camposRespostas.clear();
@@ -384,10 +397,27 @@ public class StopGameUI extends JFrame {
             JTextField txt = new JTextField();
             txt.setFont(new Font("Arial", Font.PLAIN, 14));
             camposRespostas.put(cat, txt);
+            txt.getDocument().addDocumentListener(new DocumentListener() {
+                @Override
+                public void insertUpdate(DocumentEvent e) {
+                    atualizarDisponibilidadeStop();
+                }
+
+                @Override
+                public void removeUpdate(DocumentEvent e) {
+                    atualizarDisponibilidadeStop();
+                }
+
+                @Override
+                public void changedUpdate(DocumentEvent e) {
+                    atualizarDisponibilidadeStop();
+                }
+            });
             painelCategorias.add(txt, gbc);
             row++;
         }
 
+        atualizarDisponibilidadeStop();
         painelCategorias.revalidate();
         painelCategorias.repaint();
     }
@@ -503,6 +533,16 @@ public class StopGameUI extends JFrame {
             timerContagem.stop();
             timerContagem = null;
         }
+    }
+
+    private boolean respostasCompletas() {
+        return !camposRespostas.isEmpty()
+                && camposRespostas.values().stream()
+                .allMatch(campo -> !campo.getText().isBlank());
+    }
+
+    private void atualizarDisponibilidadeStop() {
+        btnStop.setEnabled(respostasCompletas());
     }
 
     public static void main(String[] args) {
