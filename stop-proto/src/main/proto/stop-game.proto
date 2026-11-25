@@ -99,10 +99,18 @@ message EventoJogo {
   map<string, int32> pontuacao_geral = 7;
 
   int32 duracao_segundos = 8;
+
+  repeated JogadorPontuacao placar_jogadores = 9;
 }
 
 message RespostaConsolidada {
   string id_jogador = 1;
   string nome_jogador = 2;
   map<string, string> respostas = 3;
+}
+
+message JogadorPontuacao {
+  string id_jogador = 1;
+  string nome_jogador = 2;
+  int32 pontuacao = 3;
 }

@@ -220,6 +220,7 @@ public class StopGameServiceImpl extends StopGameServiceGrpc.StopGameServiceImpl
         transmitir(EventoJogo.newBuilder()
                 .setTipo(TipoEvento.FIM_RODADA)
                 .putAllPontuacaoGeral(placarGeral)
+                .addAllPlacarJogadores(criarPlacarJogadores(placarGeral))
                 .setMensagem("Fim da rodada " + rodada.getNumeroRodadas() + "! Placar atualizado.")
                 .build());
     }
@@ -229,6 +230,7 @@ public class StopGameServiceImpl extends StopGameServiceGrpc.StopGameServiceImpl
         transmitir(EventoJogo.newBuilder()
                 .setTipo(TipoEvento.FIM_JOGO)
                 .putAllPontuacaoGeral(placarFinal)
+                .addAllPlacarJogadores(criarPlacarJogadores(placarFinal))
                 .setMensagem("Fim de jogo! Confira o placar final.")
                 .build());
     }
@@ -244,5 +246,21 @@ public class StopGameServiceImpl extends StopGameServiceGrpc.StopGameServiceImpl
                 canaisStreaming.remove(entry.getKey());
             }
         }
+    }
+
+    private List<JogadorPontuacao> criarPlacarJogadores(Map<String, Integer> pontuacoes) {
+        List<JogadorPontuacao> placar = new ArrayList<>();
+
+        pontuacoes.forEach((id, pontos) -> {
+            Player jogador = room.getJogadores().get(id);
+
+            placar.add(JogadorPontuacao.newBuilder()
+                    .setIdJogador(id)
+                    .setNomeJogador(jogador != null ? jogador.getNome() : id)
+                    .setPontuacao(pontos)
+                    .build());
+        });
+
+        return placar;
     }
 }
