@@ -35,14 +35,11 @@ public class Room {
 
     private static final int MINIMO_JOGADORES = 2;
     private static final int TOTAL_RODADAS = 3;
-    private static final int TEMPO_RODADA_MINIMO_SEGUNDOS = 30;
-    private static final int TEMPO_RODADA_MAXIMO_SEGUNDOS = 60;
-    private static final int TEMPO_VOTACAO_MINIMO_SEGUNDOS = 15;
-    private static final int TEMPO_VOTACAO_MAXIMO_SEGUNDOS = 30;
+    private static final int TEMPO_RODADA_SEGUNDOS = 40;
+    private static final int TEMPO_VOTACAO_SEGUNDOS = 60;
 
-    private final Random random = new Random();
-    private volatile int tempoRodadaAtualSegundos;
-    private volatile int tempoVotacaoAtualSegundos;
+    private volatile int tempoRodadaAtualSegundos = TEMPO_RODADA_SEGUNDOS;
+    private volatile int tempoVotacaoAtualSegundos = TEMPO_VOTACAO_SEGUNDOS;
     private ScheduledFuture<?> tarefaTimeoutRodada;
     private static final List<String> CATEGORIAS_PADRAO = List.of("NOME", "CEP", "ANIMAL", "OBJETO", "COR");
 
@@ -137,10 +134,6 @@ public class Room {
         }
 
         contadorRodadas++;
-        tempoRodadaAtualSegundos =
-                numeroAleatorioInclusivo(TEMPO_RODADA_MINIMO_SEGUNDOS, TEMPO_RODADA_MAXIMO_SEGUNDOS);
-        tempoVotacaoAtualSegundos =
-                numeroAleatorioInclusivo(TEMPO_VOTACAO_MINIMO_SEGUNDOS, TEMPO_VOTACAO_MAXIMO_SEGUNDOS);
         Collections.shuffle(letrasDisponiveis);
         String letraSorteada = letrasDisponiveis.remove(0);
 
@@ -188,8 +181,7 @@ public class Room {
      */
     public synchronized  boolean submeterPalavras(String idJogador, Map<String, String> respostas){
         if (estadoAtual.get() != GameState.RODADA_ATIVA
-                || !jogadores.containsKey(idJogador)
-                || !respostasContemTodasAsCategorias(respostas)){
+                || !jogadores.containsKey(idJogador)){
             return false;
         }
 
@@ -201,37 +193,60 @@ public class Room {
      * Transição de Estado: Avança da digitação para a validação das palavras.
      */
     public synchronized void avancarParaValidacao(){
-        if (estadoAtual.compareAndSet(GameState.RODADA_ATIVA, GameState.VALIDACAO)){
-            System.out.println("[ESTADO] Transição para VALIDACAO. Timeout de segurança: 15s.");
-            listeners.forEach(lis -> lis.onInicioValidacao(rodadaAtual, tempoVotacaoAtualSegundos));
+        if (estadoAtual.compareAndSet(GameState.RODADA_ATIVA, GameState.VALIDACAO)) {
+            System.out.printf(
+                    "[ESTADO] Transição para VALIDACAO. Tempo para votar: %ds.%n",
+                    tempoVotacaoAtualSegundos
+            );
+
+            listeners.forEach(listener ->
+                    listener.onInicioValidacao(rodadaAtual, tempoVotacaoAtualSegundos)
+            );
+
             tarefaTimeoutValidacao = scheduler.schedule(
                     this::finalizarValidacaoECalcularPontos,
                     tempoVotacaoAtualSegundos,
                     TimeUnit.SECONDS
             );
-
-            // Barreira com Timeout defensivo: encerra a validação em 15 segundos se nem todos votarem
-            tarefaTimeoutValidacao = scheduler.schedule(this::finalizarValidacaoECalcularPontos, 15, TimeUnit.SECONDS);
         }
     }
 
     /**
      * Registra o voto de um cliente avaliando a resposta de outro.
      */
-    public synchronized boolean registrarVoto(String idJogadorVotante, String idJogadorAlvo, String categoria, boolean aprovado){
-        if (estadoAtual.get() != GameState.VALIDACAO || rodadaAtual == null){
+    public synchronized boolean registrarVoto(
+            String idJogadorVotante,
+            String idJogadorAlvo,
+            String categoria,
+            boolean aprovado
+    ) {
+        if (estadoAtual.get() != GameState.VALIDACAO
+                || rodadaAtual == null
+                || !jogadores.containsKey(idJogadorVotante)) {
             return false;
         }
-        rodadaAtual.registrarVoto(idJogadorAlvo, categoria, aprovado);
-        jogadoresQueVotaram.add(idJogadorVotante);
 
-        // Se todos os nós conectados já enviaram seus votos, encerra a espera antecipadamente
-        long totalConectados = jogadores.values().stream().filter(Player::isConectado).count();
-        if (jogadoresQueVotaram.size() >= totalConectados){
-            System.out.println("[BARREIRA] Todos os clientes votaram. Encerrando validação imediatamente.");
-            if (tarefaTimeoutValidacao != null && !tarefaTimeoutValidacao.isDone()){
+        rodadaAtual.registrarVoto(idJogadorAlvo, categoria, aprovado);
+        return true;
+    }
+
+    public synchronized boolean confirmarVotos(String idJogador) {
+        if (estadoAtual.get() != GameState.VALIDACAO
+                || !jogadores.containsKey(idJogador)) {
+            return false;
+        }
+
+        jogadoresQueVotaram.add(idJogador);
+
+        int totalJogadoresNaSala = jogadores.size();
+
+        if (jogadoresQueVotaram.size() >= totalJogadoresNaSala) {
+            System.out.println("[BARREIRA] Todos os jogadores conectados confirmaram os votos.");
+
+            if (tarefaTimeoutValidacao != null) {
                 tarefaTimeoutValidacao.cancel(false);
             }
+
             finalizarValidacaoECalcularPontos();
         }
 
@@ -288,10 +303,6 @@ public class Room {
      */
     public void desligarAgendador(){
         this.scheduler.shutdownNow();
-    }
-
-    private int numeroAleatorioInclusivo(int minimo, int maximo) {
-        return random.nextInt(maximo - minimo + 1) + minimo;
     }
 
     private void encerrarRodadaPorTempo() {

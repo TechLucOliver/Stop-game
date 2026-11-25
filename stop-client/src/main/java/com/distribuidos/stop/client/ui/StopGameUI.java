@@ -304,9 +304,12 @@ public class StopGameUI extends JFrame {
         }
 
         new Thread(() -> {
-            rede.submeterVotos(votos);
+            boolean enviados = rede.submeterVotos(votos);
+
             SwingUtilities.invokeLater(() -> {
-                JOptionPane.showMessageDialog(this, "Votos computados! Aguardando apuração do servidor.", "Votação Concluída", JOptionPane.INFORMATION_MESSAGE);
+                btnEnviarVotos.setText(enviados
+                        ? "Votos enviados — aguardando os demais jogadores"
+                        : "Não foi possível enviar os votos");
             });
         }).start();
     }

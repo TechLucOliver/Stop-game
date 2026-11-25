@@ -123,6 +123,13 @@ public class StopGameServiceImpl extends StopGameServiceGrpc.StopGameServiceImpl
     public void submeterPalavras(SubmissaoRespostas request, StreamObserver<Confirmacao> responseObserver) {
         boolean aceito = room.submeterPalavras(request.getIdJogador(), request.getRespostasPorCategoriaMap());
 
+        System.out.printf(
+                "[DEBUG] Submissão do jogador %s: aceita=%s, categorias=%s%n",
+                request.getIdJogador(),
+                aceito,
+                request.getRespostasPorCategoriaMap().keySet()
+        );
+
         Confirmacao confirmacao = Confirmacao.newBuilder()
                 .setSucesso(aceito)
                 .setMensagem(aceito ? "Respostas registradas com sucesso." : "Submissão rejeitada: rodada inativa.")
@@ -138,14 +145,24 @@ public class StopGameServiceImpl extends StopGameServiceGrpc.StopGameServiceImpl
     @Override
     public void submeterVotos(SubmissaoVotos request, StreamObserver<Confirmacao> responseObserver) {
         String idVotante = request.getIdJogadorVotante();
+        boolean votosAceitos = true;
 
         for (VotoItem voto : request.getVotosList()){
-            room.registrarVoto(idVotante, voto.getIdJogadorAlvo(), voto.getCategoria(), voto.getAprovado());
+            votosAceitos &= room.registrarVoto(
+                    idVotante,
+                    voto.getIdJogadorAlvo(),
+                    voto.getCategoria(),
+                    voto.getAprovado()
+            );
         }
 
+        boolean confirmou = votosAceitos && room.confirmarVotos(idVotante);
+
         Confirmacao confirmacao = Confirmacao.newBuilder()
-                .setSucesso(true)
-                .setMensagem("Votos computados com sucesso.")
+                .setSucesso(confirmou)
+                .setMensagem(confirmou
+                        ? "Votos registrados e confirmação recebida."
+                        : "Não foi possível registrar a confirmação dos votos.")
                 .build();
 
         responseObserver.onNext(confirmacao);
@@ -199,6 +216,11 @@ public class StopGameServiceImpl extends StopGameServiceGrpc.StopGameServiceImpl
             String id = entry.getKey();
             Player player = room.getJogadores().get(id);
             String nome = (player != null) ? player.getNome() : id;
+
+            System.out.printf(
+                    "[DEBUG] Início da validação: jogadores com respostas=%s%n",
+                    rodada.getRespostasPorJogador().keySet()
+            );
 
             respostasConsolidadas.add(RespostaConsolidada.newBuilder()
                             .setIdJogador(id)
