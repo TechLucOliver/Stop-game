@@ -25,9 +25,10 @@ public class Room {
      */
     public interface RoomListener{
         void onJogadorEntou(Player jogador);
-        void onInicioRodada(Round rodada);
+        void onInicioRodada(Round rodada, int duracaoSegundos);
         void onStopAcionado(String nomeJogadorVencedor);
-        void onInicioValidacao(Round rodada);
+        void onTempoRodadaEsgotado();
+        void onInicioValidacao(Round rodada, int duracaoSegundos);
         void onFimRodada(Round rodada, Map<String, Integer> pontuacaoRodada, Map<String, Integer> placarGeral);
         void onFimJogo(Map<String, Integer> placarFinal);
     }
