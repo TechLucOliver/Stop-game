@@ -50,24 +50,31 @@ public class GameGrpcClient {
      * Executa o handshake inicial com o servidor remoto.
      * Chamada síncrona: a thread aguarda a resposta do servidor.
      */
-    public boolean conectar(String nome){
+    public boolean conectar(String nome) {
+        return conectar(nome, "");
+    }
+
+    public boolean conectar(String nome, String idSala) {
         this.nomeJogador = nome;
 
         RequisicaoEntrada request = RequisicaoEntrada.newBuilder()
                 .setNome(nome)
+                .setIdSala(idSala == null ? "" : idSala)
                 .build();
 
-        // Chamada remota via stub bloqueante
         RespostaEntrada resposta = blockingStub.conectar(request);
 
-        if (resposta.getSucesso()){
+        if (resposta.getSucesso()) {
             this.idJogador = resposta.getIdJogador();
-            System.out.printf("[REDE] Conectado com sucesso! ID atribuído: %s%n", this.idJogador);
+            System.out.printf(
+                    "[REDE] Conectado com sucesso! ID atribuído: %s%n",
+                    this.idJogador
+            );
             return true;
-        }else{
-            System.err.printf("[REDE] Erro ao conectar: %s%n", resposta.getMensagem());
-            return false;
         }
+
+        System.err.printf("[REDE] Erro ao conectar: %s%n", resposta.getMensagem());
+        return false;
     }
 
     /**
@@ -161,6 +168,50 @@ public class GameGrpcClient {
 
         Confirmacao resposta = blockingStub.submeterVotos(request);
         return resposta.getSucesso();
+    }
+
+    public List<SalaDisponivel> listarSalas() {
+        ListarSalasResponse resposta = blockingStub.listarSalas(
+                ListarSalasRequest.getDefaultInstance()
+        );
+
+        return List.copyOf(resposta.getSalasList());
+    }
+
+    public CriarSalaResponse criarSala(
+            String nomeSala,
+            List<String> categorias,
+            int totalRodadas,
+            List<String> letrasHabilitadas
+    ) {
+        CriarSalaRequest request = CriarSalaRequest.newBuilder()
+                .setNomeSala(nomeSala)
+                .addAllCategorias(categorias)
+                .setTotalRodadas(totalRodadas)
+                .addAllLetrasHabilitadas(letrasHabilitadas)
+                .build();
+
+        return blockingStub.criarSala(request);
+    }
+
+    public EditarSalaResponse editarSala(
+            String idSala,
+            String tokenCriador,
+            String nomeSala,
+            List<String> categorias,
+            int totalRodadas,
+            List<String> letrasHabilitadas
+    ) {
+        EditarSalaRequest request = EditarSalaRequest.newBuilder()
+                .setIdSala(idSala)
+                .setTokenCriador(tokenCriador)
+                .setNomeSala(nomeSala)
+                .addAllCategorias(categorias)
+                .setTotalRodadas(totalRodadas)
+                .addAllLetrasHabilitadas(letrasHabilitadas)
+                .build();
+
+        return blockingStub.editarSala(request);
     }
 
     public String getIdJogador() {

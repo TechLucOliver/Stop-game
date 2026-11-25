@@ -1,11 +1,7 @@
 package com.distribuidos.stop.client.ui;
 
-import com.distribuidos.stop.EventoJogo;
-import com.distribuidos.stop.RespostaConsolidada;
-import com.distribuidos.stop.TipoEvento;
-import com.distribuidos.stop.VotoItem;
+import com.distribuidos.stop.*;
 import com.distribuidos.stop.client.network.GameGrpcClient;
-import com.distribuidos.stop.JogadorPontuacao;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -28,6 +24,8 @@ import javax.swing.event.DocumentListener;
  */
 public class StopGameUI extends JFrame {
 
+    private final Map<String, String> tokensSalasCriadas = new HashMap<>();
+
     private final CardLayout cardLayout = new CardLayout();
     private final JPanel painelPrincipal = new JPanel(cardLayout);
 
@@ -42,6 +40,10 @@ public class StopGameUI extends JFrame {
     private JButton btnConectar;
     private JButton btnPronto;
     private JLabel lblStatusLobby;
+    private JComboBox<SalaDisponivel> comboSalas;
+    private JButton btnAtualizarSalas;
+    private JButton btnCriarSala;
+    private JButton btnEditarSala;
 
     // Componentes da Tela de Jogo (RODADA)
     private JLabel lblLetraSorteada;
@@ -103,6 +105,44 @@ public class StopGameUI extends JFrame {
         txtHost = new JTextField("localhost");
         txtPorta = new JTextField("50051");
 
+        comboSalas = new JComboBox<>();
+        comboSalas.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(
+                    JList<?> lista,
+                    Object valor,
+                    int indice,
+                    boolean selecionado,
+                    boolean foco
+            ) {
+                super.getListCellRendererComponent(
+                        lista, valor, indice, selecionado, foco
+                );
+
+                if (valor instanceof SalaDisponivel sala) {
+                    setText(sala.getNomeSala()
+                            + " — "
+                            + sala.getJogadoresConectados()
+                            + " jogador(es) — "
+                            + sala.getEstado());
+                }
+
+                return this;
+            }
+        });
+
+        btnAtualizarSalas = new JButton("Atualizar salas");
+        btnAtualizarSalas.addActionListener(e -> acaoAtualizarSalas());
+
+        btnCriarSala = new JButton("Criar sala");
+        btnCriarSala.addActionListener(e -> acaoCriarSala());
+
+        btnEditarSala = new JButton("Editar sala selecionada");
+        btnEditarSala.setEnabled(false);
+        btnEditarSala.addActionListener(e -> acaoEditarSala());
+
+        comboSalas.addActionListener(e -> atualizarDisponibilidadeEdicaoSala());
+
         btnConectar = new JButton("Conectar ao Servidor");
         btnConectar.setFont(new Font("Arial", Font.BOLD, 14));
         btnConectar.setBackground(new Color(26, 115, 232));
@@ -118,16 +158,59 @@ public class StopGameUI extends JFrame {
         btnConectar.addActionListener(e -> acaoConectar());
         btnPronto.addActionListener(e -> acaoMarcarPronto());
 
-        gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2; painel.add(lblTitulo, gbc);
-        gbc.gridy = 1; gbc.gridwidth = 1; painel.add(new JLabel("Nome do Jogador:"), gbc);
-        gbc.gridx = 1; painel.add(txtNome, gbc);
-        gbc.gridx = 0; gbc.gridy = 2; painel.add(new JLabel("IP do Servidor:"), gbc);
-        gbc.gridx = 1; painel.add(txtHost, gbc);
-        gbc.gridx = 0; gbc.gridy = 3; painel.add(new JLabel("Porta TCP:"), gbc);
-        gbc.gridx = 1; painel.add(txtPorta, gbc);
-        gbc.gridx = 0; gbc.gridy = 4; gbc.gridwidth = 2; painel.add(btnConectar, gbc);
-        gbc.gridy = 5; painel.add(btnPronto, gbc);
-        gbc.gridy = 6; painel.add(lblStatusLobby, gbc);
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.gridwidth = 2;
+        painel.add(lblTitulo, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy = 1;
+        gbc.gridwidth = 1;
+        painel.add(new JLabel("Nome do Jogador:"), gbc);
+        gbc.gridx = 1;
+        painel.add(txtNome, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy = 2;
+        painel.add(new JLabel("IP do Servidor:"), gbc);
+        gbc.gridx = 1;
+        painel.add(txtHost, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy = 3;
+        painel.add(new JLabel("Porta TCP:"), gbc);
+        gbc.gridx = 1;
+        painel.add(txtPorta, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy = 4;
+        painel.add(new JLabel("Sala:"), gbc);
+        gbc.gridx = 1;
+        painel.add(comboSalas, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy = 5;
+        gbc.gridwidth = 2;
+        painel.add(btnAtualizarSalas, gbc);
+
+        gbc.gridy = 5;
+        gbc.gridwidth = 2;
+        painel.add(btnAtualizarSalas, gbc);
+
+        gbc.gridy = 6;
+        painel.add(btnCriarSala, gbc);
+
+        gbc.gridy = 7;
+        painel.add(btnEditarSala, gbc);
+
+        gbc.gridy = 8;
+        painel.add(btnConectar, gbc);
+
+        gbc.gridy = 9;
+        painel.add(btnPronto, gbc);
+
+        gbc.gridy = 10;
+        painel.add(lblStatusLobby, gbc);
 
         return painel;
     }
@@ -234,9 +317,22 @@ public class StopGameUI extends JFrame {
         int porta = Integer.parseInt(txtPorta.getText().trim());
         String nome = txtNome.getText().trim();
 
+        SalaDisponivel salaSelecionada =
+                (SalaDisponivel) comboSalas.getSelectedItem();
+
+        if (salaSelecionada == null) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Atualize a lista e selecione uma sala antes de conectar.",
+                    "Sala não selecionada",
+                    JOptionPane.WARNING_MESSAGE
+            );
+            return;
+        }
+
         new Thread(() -> {
             rede = new GameGrpcClient(host, porta);
-            boolean conectado = rede.conectar(nome);
+            boolean conectado = rede.conectar(nome, salaSelecionada.getIdSala());
 
             SwingUtilities.invokeLater(() -> {
                 if (conectado) {
@@ -549,6 +645,200 @@ public class StopGameUI extends JFrame {
 
     private void atualizarDisponibilidadeStop() {
         btnStop.setEnabled(respostasCompletas());
+    }
+
+    private void acaoCriarSala() {
+        String nomeSala = JOptionPane.showInputDialog(
+                this, "Nome da sala:"
+        );
+        if (nomeSala == null) return;
+
+        String categoriasTexto = JOptionPane.showInputDialog(
+                this, "Categorias separadas por vírgula:", "NOME, ANIMAL, COR"
+        );
+        if (categoriasTexto == null) return;
+
+        String rodadasTexto = JOptionPane.showInputDialog(
+                this, "Quantidade de rodadas:", "3"
+        );
+        if (rodadasTexto == null) return;
+
+        JPanel painelLetras = new JPanel(new GridLayout(0, 7, 5, 5));
+        JCheckBox[] caixasLetras = new JCheckBox[26];
+
+        for (int i = 0; i < 26; i++) {
+            String letra = String.valueOf((char) ('A' + i));
+            caixasLetras[i] = new JCheckBox(letra, true);
+            painelLetras.add(caixasLetras[i]);
+        }
+
+        int resultadoLetras = JOptionPane.showConfirmDialog(
+                this,
+                new JScrollPane(painelLetras),
+                "Selecione as letras habilitadas",
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.PLAIN_MESSAGE
+        );
+
+        if (resultadoLetras != JOptionPane.OK_OPTION) {
+            return;
+        }
+
+        List<String> letras = new ArrayList<>();
+        for (JCheckBox caixa : caixasLetras) {
+            if (caixa.isSelected()) {
+                letras.add(caixa.getText());
+            }
+        }
+
+        if (letras.isEmpty()) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Selecione pelo menos uma letra.",
+                    "Nenhuma letra selecionada",
+                    JOptionPane.WARNING_MESSAGE
+            );
+            return;
+        }
+
+        int totalRodadas;
+        try {
+            totalRodadas = Integer.parseInt(rodadasTexto.trim());
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(this, "Informe um número válido de rodadas.");
+            return;
+        }
+
+        List<String> categorias = Arrays.stream(categoriasTexto.split(","))
+                .map(String::trim)
+                .filter(valor -> !valor.isEmpty())
+                .toList();
+
+        String host = txtHost.getText().trim();
+        int porta;
+
+        try {
+            porta = Integer.parseInt(txtPorta.getText().trim());
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(this, "Informe uma porta válida.");
+            return;
+        }
+
+        btnCriarSala.setEnabled(false);
+
+        new Thread(() -> {
+            GameGrpcClient clienteTemporario = new GameGrpcClient(host, porta);
+
+            try {
+                CriarSalaResponse resposta = clienteTemporario.criarSala(
+                        nomeSala.trim(),
+                        categorias,
+                        totalRodadas,
+                        letras
+                );
+
+                SwingUtilities.invokeLater(() -> {
+                    btnCriarSala.setEnabled(true);
+
+                    if (resposta.getSucesso()) {
+                        tokensSalasCriadas.put(
+                                resposta.getIdSala(),
+                                resposta.getTokenCriador());
+                        JOptionPane.showMessageDialog(this, "Sala criada com sucesso.");
+                        acaoAtualizarSalas();
+                    } else {
+                        JOptionPane.showMessageDialog(
+                                this,
+                                resposta.getMensagem(),
+                                "Não foi possível criar a sala",
+                                JOptionPane.WARNING_MESSAGE
+                        );
+                    }
+                });
+            } catch (Exception e) {
+                SwingUtilities.invokeLater(() -> {
+                    btnCriarSala.setEnabled(true);
+                    JOptionPane.showMessageDialog(
+                            this,
+                            "Falha ao criar a sala: " + e.getMessage(),
+                            "Erro de conexão",
+                            JOptionPane.ERROR_MESSAGE
+                    );
+                });
+            } finally {
+                clienteTemporario.desconectar();
+            }
+        }).start();
+    }
+
+    private void acaoAtualizarSalas() {
+        String host = txtHost.getText().trim();
+        int porta;
+
+        try {
+            porta = Integer.parseInt(txtPorta.getText().trim());
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Informe uma porta válida.",
+                    "Porta inválida",
+                    JOptionPane.WARNING_MESSAGE
+            );
+            return;
+        }
+
+        btnAtualizarSalas.setEnabled(false);
+        lblStatusLobby.setText("Buscando salas...");
+
+        new Thread(() -> {
+            GameGrpcClient clienteTemporario = new GameGrpcClient(host, porta);
+
+            try {
+                List<SalaDisponivel> salas = clienteTemporario.listarSalas();
+
+                SwingUtilities.invokeLater(() -> {
+                    comboSalas.removeAllItems();
+                    salas.forEach(comboSalas::addItem);
+
+                    lblStatusLobby.setText(salas.isEmpty()
+                            ? "Nenhuma sala criada. Na próxima etapa adicionaremos a criação pela tela."
+                            : "Selecione uma sala e conecte-se.");
+
+                    btnAtualizarSalas.setEnabled(true);
+                });
+            } catch (Exception e) {
+                SwingUtilities.invokeLater(() -> {
+                    lblStatusLobby.setText("Não foi possível buscar as salas.");
+                    btnAtualizarSalas.setEnabled(true);
+                    JOptionPane.showMessageDialog(
+                            this,
+                            "Falha ao consultar o servidor: " + e.getMessage(),
+                            "Erro de conexão",
+                            JOptionPane.ERROR_MESSAGE
+                    );
+                });
+            } finally {
+                clienteTemporario.desconectar();
+            }
+        }).start();
+    }
+
+    private void acaoEditarSala() {
+        JOptionPane.showMessageDialog(
+                this,
+                "O formulário de edição será adicionado na próxima etapa."
+        );
+    }
+
+    private void atualizarDisponibilidadeEdicaoSala() {
+        SalaDisponivel salaSelecionada =
+                (SalaDisponivel) comboSalas.getSelectedItem();
+
+        boolean possoEditar = salaSelecionada != null
+                && "LOBBY".equalsIgnoreCase(salaSelecionada.getEstado())
+                && tokensSalasCriadas.containsKey(salaSelecionada.getIdSala());
+
+        btnEditarSala.setEnabled(possoEditar);
     }
 
     public static void main(String[] args) {

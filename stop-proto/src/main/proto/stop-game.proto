@@ -30,6 +30,8 @@ service StopGameService {
 
   // Consultar as salas disponíveis para entrar
   rpc ListarSalas (ListarSalasRequest) returns (ListarSalasResponse);
+
+  rpc EditarSala (EditarSalaRequest) returns (EditarSalaResponse);
 }
 
 // --- Mensagens de Entrada e Controle ---
@@ -133,6 +135,21 @@ message CriarSalaResponse {
   bool sucesso = 1;
   string id_sala = 2;
   string mensagem = 3;
+  string token_criador = 4;
+}
+
+message EditarSalaRequest {
+  string id_sala = 1;
+  string token_criador = 2;
+  string nome_sala = 3;
+  repeated string categorias = 4;
+  int32 total_rodadas = 5;
+  repeated string letras_habilitadas = 6;
+}
+
+message EditarSalaResponse {
+  bool sucesso = 1;
+  string mensagem = 2;
 }
 
 message ListarSalasRequest {
@@ -147,4 +164,7 @@ message SalaDisponivel {
   string nome_sala = 2;
   int32 jogadores_conectados = 3;
   string estado = 4;
+  repeated string categorias = 5;
+  int32 total_rodadas = 6;
+  repeated string letras_habilitadas = 7;
 }

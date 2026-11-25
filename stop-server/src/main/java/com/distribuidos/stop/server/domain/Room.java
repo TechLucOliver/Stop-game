@@ -42,8 +42,8 @@ public class Room {
     private volatile int tempoVotacaoAtualSegundos = TEMPO_VOTACAO_SEGUNDOS;
     private ScheduledFuture<?> tarefaTimeoutRodada;
 
-    private final int totalRodadas;
-    private final List<String> categorias;
+    private volatile int totalRodadas;
+    private volatile List<String> categorias;
     private final List<String> letrasDisponiveis;
 
 
@@ -375,5 +375,23 @@ public class Room {
 
             return resposta != null && !resposta.isBlank();
         });
+    }
+
+    public synchronized boolean atualizarConfiguracao(GameConfig config) {
+        if (config == null
+                || estadoAtual.get() != GameState.LOBBY
+                || contadorRodadas > 0) {
+            return false;
+        }
+
+        this.totalRodadas = config.getTotalRodadas();
+        this.categorias = config.getCategorias();
+
+        synchronized (letrasDisponiveis) {
+            letrasDisponiveis.clear();
+            letrasDisponiveis.addAll(config.getLetrasDisponiveis());
+        }
+
+        return true;
     }
 }
