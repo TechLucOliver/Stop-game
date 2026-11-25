@@ -80,6 +80,7 @@ enum TipoEvento {
   INICIO_VALIDACAO = 3;
   FIM_RODADA = 4;
   FIM_JOGO = 5;
+  TEMPO_RODADA_ESGOTADO = 6;
 }
 
 message EventoJogo {
@@ -96,6 +97,8 @@ message EventoJogo {
 
   // Placar consolidado enviado no fim da rodada/jogo
   map<string, int32> pontuacao_geral = 7;
+
+  int32 duracao_segundos = 8;
 }
 
 message RespostaConsolidada {

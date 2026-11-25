@@ -13,9 +13,6 @@
         <module>stop-proto</module>
         <module>stop-server</module>
         <module>stop-client</module>
-        <module>stop-proto</module>
-        <module>stop-server</module>
-        <module>stop-client</module>
     </modules>
 
     <properties>
