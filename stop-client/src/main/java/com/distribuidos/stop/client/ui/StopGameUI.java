@@ -5,6 +5,7 @@ import com.distribuidos.stop.RespostaConsolidada;
 import com.distribuidos.stop.TipoEvento;
 import com.distribuidos.stop.VotoItem;
 import com.distribuidos.stop.client.network.GameGrpcClient;
+import com.distribuidos.stop.JogadorPontuacao;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -354,7 +355,10 @@ public class StopGameUI extends JFrame {
                 case FIM_RODADA:
                 case FIM_JOGO:
                     pararTemporizador();
-                    montarTelaPlacar(evento.getPontuacaoGeralMap(), evento.getTipo() == TipoEvento.FIM_JOGO);
+                    montarTelaPlacar(
+                            evento.getPlacarJogadoresList(),
+                            evento.getTipo() == TipoEvento.FIM_JOGO
+                    );
                     cardLayout.show(painelPrincipal, "PLACAR");
                     break;
 
@@ -453,15 +457,15 @@ public class StopGameUI extends JFrame {
         painelItensValidacao.repaint();
     }
 
-    private void montarTelaPlacar(Map<String, Integer> placar, boolean fimDeJogo) {
+    private void montarTelaPlacar(List<JogadorPontuacao> placar, boolean fimDeJogo) {
         painelPlacar.removeAll();
         lblTituloPlacar.setText(fimDeJogo ? "🏆 FIM DE JOGO - PLACAR FINAL 🏆" : "Classificação Parcial da Partida");
 
-        List<Map.Entry<String, Integer>> ordenado = new ArrayList<>(placar.entrySet());
-        ordenado.sort((a, b) -> b.getValue().compareTo(a.getValue()));
+        List<JogadorPontuacao> ordenado = new ArrayList<>(placar);
+        ordenado.sort((a, b) -> Integer.compare(b.getPontuacao(), a.getPontuacao()));
 
         int posicao = 1;
-        for (Map.Entry<String, Integer> entry : ordenado) {
+        for (JogadorPontuacao jogador : ordenado) {
             JPanel cardLinha = new JPanel(new BorderLayout());
             cardLinha.setBorder(BorderFactory.createCompoundBorder(
                     new EmptyBorder(5, 5, 5, 5),
@@ -469,11 +473,10 @@ public class StopGameUI extends JFrame {
             ));
             cardLinha.setMaximumSize(new Dimension(Integer.MAX_VALUE, 45));
 
-            String rotulo = posicao + "º Lugar: Jogador [" + entry.getKey().substring(0, 4) + "]";
-            JLabel lblNome = new JLabel(rotulo);
+            JLabel lblNome = new JLabel(posicao + "º Lugar: " + jogador.getNomeJogador());
             lblNome.setFont(new Font("Arial", Font.BOLD, 15));
 
-            JLabel lblPontos = new JLabel(entry.getValue() + " Pontos   ");
+            JLabel lblPontos = new JLabel(jogador.getPontuacao() + " Pontos   ");
             lblPontos.setFont(new Font("Arial", Font.BOLD, 15));
             lblPontos.setForeground(new Color(40, 167, 69));
 
