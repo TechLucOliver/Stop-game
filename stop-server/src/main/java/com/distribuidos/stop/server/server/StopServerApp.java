@@ -1,6 +1,7 @@
 package com.distribuidos.stop.server.server;
 
 import com.distribuidos.stop.server.domain.Room;
+import com.distribuidos.stop.server.domain.RoomManager;
 import com.distribuidos.stop.server.grpc.StopGameServiceImpl;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
@@ -16,6 +17,8 @@ public class StopServerApp {
     // Porta TCP onde o servidor ficará escutando chamadas gRPC
     private static final int PORTA_TCP = 50051;
     private Server server;
+    Room room = new Room();
+    RoomManager roomManager = new RoomManager();
 
     /**
      * Inicializa a infraestrutura de rede gRPC (baseada em Netty).
@@ -26,7 +29,7 @@ public class StopServerApp {
 
         // Constrói o servidor gRPC vinculando a porta TCP ao serviço remoto implementado
         server = ServerBuilder.forPort(PORTA_TCP)
-                .addService(new StopGameServiceImpl(room))
+                .addService(new StopGameServiceImpl(room, roomManager))
                 .build()
                 .start();
 

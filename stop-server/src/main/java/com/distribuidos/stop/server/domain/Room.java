@@ -34,19 +34,18 @@ public class Room {
     }
 
     private static final int MINIMO_JOGADORES = 2;
-    private static final int TOTAL_RODADAS = 3;
+
     private static final int TEMPO_RODADA_SEGUNDOS = 40;
     private static final int TEMPO_VOTACAO_SEGUNDOS = 60;
 
     private volatile int tempoRodadaAtualSegundos = TEMPO_RODADA_SEGUNDOS;
     private volatile int tempoVotacaoAtualSegundos = TEMPO_VOTACAO_SEGUNDOS;
     private ScheduledFuture<?> tarefaTimeoutRodada;
-    private static final List<String> CATEGORIAS_PADRAO = List.of("NOME", "CEP", "ANIMAL", "OBJETO", "COR");
 
-    // Letras disponíveis para sorteio sem repetição
-    private final List<String> letrasDisponiveis = Collections.synchronizedList(new ArrayList<>(
-            List.of("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "L", "M", "N", "O", "P", "R", "S", "T", "U", "V")
-    ));
+    private final int totalRodadas;
+    private final List<String> categorias;
+    private final List<String> letrasDisponiveis;
+
 
     private final Map<String, Player> jogadores = new ConcurrentHashMap<>();
     private final List<RoomListener> listeners = new CopyOnWriteArrayList<>();
@@ -80,6 +79,30 @@ public class Room {
 
     public Map<String, Player> getJogadores(){
         return Collections.unmodifiableMap(jogadores);
+    }
+
+    public Room() {
+        this(new GameConfig(
+                List.of("NOME", "CEP", "ANIMAL", "OBJETO", "COR"),
+                3,
+                List.of(
+                        "A", "B", "C", "D", "E", "F", "G", "H", "I",
+                        "J", "K", "L", "M", "N", "O", "P", "Q", "R",
+                        "S", "T", "U", "V", "W", "X", "Y", "Z"
+                )
+        ));
+    }
+
+    public Room(GameConfig config) {
+        if (config == null) {
+            throw new IllegalArgumentException("A configuração da sala é obrigatória.");
+        }
+
+        this.totalRodadas = config.getTotalRodadas();
+        this.categorias = config.getCategorias();
+        this.letrasDisponiveis = Collections.synchronizedList(
+                new ArrayList<>(config.getLetrasDisponiveis())
+        );
     }
 
     /**
@@ -128,7 +151,7 @@ public class Room {
      * Transição de Estado: Inicia uma nova rodada sorteando a letra e limpando as travas.
      */
     public synchronized void iniciarNovaRodada(){
-        if (contadorRodadas >= TOTAL_RODADAS || letrasDisponiveis.isEmpty()){
+        if (contadorRodadas >= totalRodadas || letrasDisponiveis.isEmpty()){
             finalizarPartida();
             return;
         }
@@ -137,7 +160,7 @@ public class Room {
         Collections.shuffle(letrasDisponiveis);
         String letraSorteada = letrasDisponiveis.remove(0);
 
-        this.rodadaAtual = new Round(contadorRodadas, letraSorteada, CATEGORIAS_PADRAO);
+        this.rodadaAtual = new Round(contadorRodadas, letraSorteada, categorias);
         this.jogadoresQueVotaram.clear();
         this.lockManeger.reiniciar();
         this.estadoAtual.set(GameState.RODADA_ATIVA);
@@ -282,7 +305,7 @@ public class Room {
         listeners.forEach(lis -> lis.onFimRodada(rodadaAtual, totalRodada, placarGeral));
 
         scheduler.schedule(() -> {
-            if (contadorRodadas < TOTAL_RODADAS){
+            if (contadorRodadas < totalRodadas){
                 iniciarNovaRodada();
             }else {
                 finalizarPartida();

@@ -24,6 +24,12 @@ service StopGameService {
 
   // Envio dos votos da etapa de validação coletiva
   rpc SubmeterVotos (SubmissaoVotos) returns (Confirmacao);
+
+  // Criar uma sala com configuração própria
+  rpc CriarSala (CriarSalaRequest) returns (CriarSalaResponse);
+
+  // Consultar as salas disponíveis para entrar
+  rpc ListarSalas (ListarSalasRequest) returns (ListarSalasResponse);
 }
 
 // --- Mensagens de Entrada e Controle ---
@@ -34,6 +40,7 @@ message IdentificadorJogador {
 
 message RequisicaoEntrada {
   string nome = 1;
+  string id_sala = 2;
 }
 
 message RespostaEntrada {
@@ -113,4 +120,31 @@ message JogadorPontuacao {
   string id_jogador = 1;
   string nome_jogador = 2;
   int32 pontuacao = 3;
+}
+
+message CriarSalaRequest {
+  string nome_sala = 1;
+  repeated string categorias = 2;
+  int32 total_rodadas = 3;
+  repeated string letras_habilitadas = 4;
+}
+
+message CriarSalaResponse {
+  bool sucesso = 1;
+  string id_sala = 2;
+  string mensagem = 3;
+}
+
+message ListarSalasRequest {
+}
+
+message ListarSalasResponse {
+  repeated SalaDisponivel salas = 1;
+}
+
+message SalaDisponivel {
+  string id_sala = 1;
+  string nome_sala = 2;
+  int32 jogadores_conectados = 3;
+  string estado = 4;
 }

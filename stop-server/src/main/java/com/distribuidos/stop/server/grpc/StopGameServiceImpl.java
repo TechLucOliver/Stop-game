@@ -7,6 +7,8 @@ import com.distribuidos.stop.server.domain.Room;
 import com.distribuidos.stop.server.domain.Round;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
+import com.distribuidos.stop.server.domain.GameConfig;
+import com.distribuidos.stop.server.domain.RoomManager;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,6 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class StopGameServiceImpl extends StopGameServiceGrpc.StopGameServiceImplBase implements Room.RoomListener {
 
     private final Room room;
+    private final RoomManager roomManager;
 
     /**
      * Registro concorrente dos canais de Server Streaming ativos:
@@ -31,8 +34,9 @@ public class StopGameServiceImpl extends StopGameServiceGrpc.StopGameServiceImpl
      */
     private final Map<String, StreamObserver<EventoJogo>> canaisStreaming = new ConcurrentHashMap<>();
 
-    public StopGameServiceImpl(Room room){
+    public StopGameServiceImpl(Room room, RoomManager roomManager) {
         this.room = room;
+        this.roomManager = roomManager;
         this.room.adicionarListener(this);
     }
 
@@ -65,6 +69,58 @@ public class StopGameServiceImpl extends StopGameServiceGrpc.StopGameServiceImpl
         }
 
         responseObserver.onNext(resposta);
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void criarSala(
+            CriarSalaRequest request,
+            StreamObserver<CriarSalaResponse> responseObserver
+    ) {
+        try {
+            GameConfig config = new GameConfig(
+                    request.getCategoriasList(),
+                    request.getTotalRodadas(),
+                    request.getLetrasHabilitadasList()
+            );
+
+            RoomManager.Sala sala = roomManager.criarSala(
+                    request.getNomeSala(),
+                    config
+            );
+
+            responseObserver.onNext(CriarSalaResponse.newBuilder()
+                    .setSucesso(true)
+                    .setIdSala(sala.getId())
+                    .setMensagem("Sala criada com sucesso.")
+                    .build());
+        } catch (IllegalArgumentException e) {
+            responseObserver.onNext(CriarSalaResponse.newBuilder()
+                    .setSucesso(false)
+                    .setMensagem(e.getMessage())
+                    .build());
+        }
+
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void listarSalas(
+            ListarSalasRequest request,
+            StreamObserver<ListarSalasResponse> responseObserver
+    ) {
+        ListarSalasResponse.Builder resposta = ListarSalasResponse.newBuilder();
+
+        for (RoomManager.Sala sala : roomManager.listarSalas()) {
+            resposta.addSalas(SalaDisponivel.newBuilder()
+                    .setIdSala(sala.getId())
+                    .setNomeSala(sala.getNome())
+                    .setJogadoresConectados(sala.getJogadoresConectados())
+                    .setEstado(sala.getEstado())
+                    .build());
+        }
+
+        responseObserver.onNext(resposta.build());
         responseObserver.onCompleted();
     }
 
