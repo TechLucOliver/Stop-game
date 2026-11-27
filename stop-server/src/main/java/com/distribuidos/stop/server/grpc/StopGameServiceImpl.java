@@ -1,7 +1,18 @@
 package com.distribuidos.stop.server.grpc;
 
 import com.distribuidos.stop.*;
+import com.distribuidos.stop.Confirmacao;
+import com.distribuidos.stop.EventoJogo;
+import com.distribuidos.stop.IdentificadorJogador;
+import com.distribuidos.stop.RequisicaoEntrada;
+import com.distribuidos.stop.RespostaConsolidada;
+import com.distribuidos.stop.RespostaEntrada;
+import com.distribuidos.stop.RespostaStop;
 import com.distribuidos.stop.StopGameServiceGrpc;
+import com.distribuidos.stop.SubmissaoRespostas;
+import com.distribuidos.stop.SubmissaoVotos;
+import com.distribuidos.stop.TipoEvento;
+import com.distribuidos.stop.VotoItem;
 import com.distribuidos.stop.server.domain.Player;
 import com.distribuidos.stop.server.domain.Room;
 import com.distribuidos.stop.server.domain.Round;

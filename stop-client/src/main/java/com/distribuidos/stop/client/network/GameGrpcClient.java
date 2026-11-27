@@ -1,7 +1,16 @@
 package com.distribuidos.stop.client.network;
 
 import com.distribuidos.stop.*;
+import com.distribuidos.stop.Confirmacao;
+import com.distribuidos.stop.EventoJogo;
+import com.distribuidos.stop.IdentificadorJogador;
+import com.distribuidos.stop.RequisicaoEntrada;
+import com.distribuidos.stop.RespostaEntrada;
+import com.distribuidos.stop.RespostaStop;
 import com.distribuidos.stop.StopGameServiceGrpc;
+import com.distribuidos.stop.SubmissaoRespostas;
+import com.distribuidos.stop.SubmissaoVotos;
+import com.distribuidos.stop.VotoItem;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
