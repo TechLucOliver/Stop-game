@@ -2,6 +2,7 @@ package com.distribuidos.stop.client.ui;
 
 import com.distribuidos.stop.*;
 import com.distribuidos.stop.client.network.GameGrpcClient;
+import java.util.prefs.Preferences;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -25,6 +26,8 @@ import javax.swing.event.DocumentListener;
 public class StopGameUI extends JFrame {
 
     private final Map<String, String> tokensSalasCriadas = new HashMap<>();
+    private static final Preferences PREFERENCIAS =
+            Preferences.userNodeForPackage(StopGameUI.class);
 
     private final CardLayout cardLayout = new CardLayout();
     private final JPanel painelPrincipal = new JPanel(cardLayout);
@@ -76,6 +79,7 @@ public class StopGameUI extends JFrame {
         setMinimumSize(new Dimension(600, 500));
         setLocationRelativeTo(null); // Centraliza na tela
         setLayout(new BorderLayout());
+        StopTheme.configurar();
         add(painelPrincipal, BorderLayout.CENTER);
     }
 
@@ -92,18 +96,22 @@ public class StopGameUI extends JFrame {
     // ========================================================================
     private JPanel criarTelaLobby() {
         JPanel painel = new JPanel(new GridBagLayout());
-        painel.setBorder(new EmptyBorder(30, 40, 30, 40));
+        painel.setBackground(StopTheme.FUNDO);
+        painel.setBorder(new EmptyBorder(32, 44, 32, 44));
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(8, 8, 8, 8);
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
         JLabel lblTitulo = new JLabel("STOP! MULTIPLAYER", SwingConstants.CENTER);
-        lblTitulo.setFont(new Font("Arial", Font.BOLD, 26));
-        lblTitulo.setForeground(new Color(26, 115, 232));
+        lblTitulo.setText("STOP!  •  SHOWDOWN");
+        lblTitulo.setFont(new Font("SansSerif", Font.BOLD, 32));
+        lblTitulo.setForeground(StopTheme.DOURADO);
 
         txtNome = new JTextField("Jogador_" + (int)(Math.random() * 900 + 100));
-        txtHost = new JTextField("localhost");
-        txtPorta = new JTextField("50051");
+        txtHost = new JTextField(PREFERENCIAS.get("servidor.host", "localhost"));
+        txtPorta = new JTextField(
+                Integer.toString(PREFERENCIAS.getInt("servidor.porta", 50051))
+        );
 
         comboSalas = new JComboBox<>();
         comboSalas.setRenderer(new DefaultListCellRenderer() {
@@ -131,6 +139,11 @@ public class StopGameUI extends JFrame {
             }
         });
 
+        StopTheme.estilizarCampo(txtNome);
+        StopTheme.estilizarCampo(txtHost);
+        StopTheme.estilizarCampo(txtPorta);
+        StopTheme.estilizarCampo(comboSalas);
+
         btnAtualizarSalas = new JButton("Atualizar salas");
         btnAtualizarSalas.addActionListener(e -> acaoAtualizarSalas());
 
@@ -157,6 +170,13 @@ public class StopGameUI extends JFrame {
 
         btnConectar.addActionListener(e -> acaoConectar());
         btnPronto.addActionListener(e -> acaoMarcarPronto());
+
+        StopTheme.estilizarBotaoPrincipal(btnConectar);
+        StopTheme.estilizarBotaoDestaque(btnPronto);
+
+        StopTheme.estilizarBotaoSecundario(btnAtualizarSalas);
+        StopTheme.estilizarBotaoSecundario(btnCriarSala);
+        StopTheme.estilizarBotaoSecundario(btnEditarSala);
 
         gbc.gridx = 0;
         gbc.gridy = 0;
@@ -193,10 +213,6 @@ public class StopGameUI extends JFrame {
         gbc.gridwidth = 2;
         painel.add(btnAtualizarSalas, gbc);
 
-        gbc.gridy = 5;
-        gbc.gridwidth = 2;
-        painel.add(btnAtualizarSalas, gbc);
-
         gbc.gridy = 6;
         painel.add(btnCriarSala, gbc);
 
@@ -220,33 +236,47 @@ public class StopGameUI extends JFrame {
     // ========================================================================
     private JPanel criarTelaJogo() {
         JPanel painel = new JPanel(new BorderLayout(15, 15));
+        painel.setBackground(StopTheme.FUNDO);
         painel.setBorder(new EmptyBorder(20, 30, 20, 30));
 
-        JPanel topo = new JPanel(new GridLayout(3, 1));
+        JPanel topo = new JPanel(new GridLayout(3, 1, 0, 6));
+        topo.setBackground(StopTheme.FUNDO);
         lblLetraSorteada = new JLabel("LETRA: ?", SwingConstants.CENTER);
-        lblLetraSorteada.setFont(new Font("Arial", Font.BOLD, 42));
-        lblLetraSorteada.setForeground(new Color(220, 53, 69));
+        lblLetraSorteada.setFont(new Font("SansSerif", Font.BOLD, 48));
+        lblLetraSorteada.setForeground(StopTheme.DOURADO);
 
         lblStatusRodada = new JLabel("Preencha todas as categorias e clique em STOP!", SwingConstants.CENTER);
-        lblStatusRodada.setFont(new Font("Arial", Font.PLAIN, 14));
+        lblStatusRodada.setFont(new Font("SansSerif", Font.PLAIN, 15));
+        lblStatusRodada.setForeground(StopTheme.TEXTO);
         topo.add(lblLetraSorteada);
         topo.add(lblStatusRodada);
 
         lblTemporizadorRodada = new JLabel("Tempo da rodada: --:--", SwingConstants.CENTER);
-        lblTemporizadorRodada.setFont(new Font("Arial", Font.BOLD, 18));
+        lblTemporizadorRodada.setFont(new Font("SansSerif", Font.BOLD, 22));
+        lblTemporizadorRodada.setForeground(StopTheme.TURQUESA);
         topo.add(lblLetraSorteada);
         topo.add(lblStatusRodada);
         topo.add(lblTemporizadorRodada);
 
         painelCategorias = new JPanel(new GridBagLayout());
         JScrollPane scroll = new JScrollPane(painelCategorias);
-        scroll.setBorder(BorderFactory.createTitledBorder("Categorias da Rodada"));
+        painelCategorias.setBackground(StopTheme.PAINEL);
+        scroll.getViewport().setBackground(StopTheme.PAINEL);
+        scroll.setBorder(BorderFactory.createTitledBorder(
+                BorderFactory.createLineBorder(StopTheme.BORDA),
+                "CATEGORIAS DA RODADA",
+                javax.swing.border.TitledBorder.LEADING,
+                javax.swing.border.TitledBorder.TOP,
+                new Font("SansSerif", Font.BOLD, 14),
+                StopTheme.DOURADO
+        ));
 
         btnStop = new JButton("STOP!");
-        btnStop.setFont(new Font("Arial", Font.BOLD, 22));
+        StopTheme.estilizarBotaoPrincipal(btnStop);
+        btnStop.setFont(new Font("SansSerif", Font.BOLD, 24));
+        btnStop.setPreferredSize(new Dimension(220, 64));
         btnStop.setBackground(new Color(40, 167, 69));
         btnStop.setForeground(Color.WHITE);
-        btnStop.setPreferredSize(new Dimension(200, 60));
         btnStop.addActionListener(e -> acaoDispararStop());
 
         painel.add(topo, BorderLayout.NORTH);
@@ -329,6 +359,8 @@ public class StopGameUI extends JFrame {
             );
             return;
         }
+
+        salvarServidorPreferido(host, porta);
 
         new Thread(() -> {
             rede = new GameGrpcClient(host, porta);
@@ -493,11 +525,13 @@ public class StopGameUI extends JFrame {
         for (String cat : categorias) {
             gbc.gridx = 0; gbc.gridy = row; gbc.weightx = 0.3;
             JLabel lblCat = new JLabel(cat + ":");
-            lblCat.setFont(new Font("Arial", Font.BOLD, 14));
+            lblCat.setFont(new Font("SansSerif", Font.BOLD, 15));
+            lblCat.setForeground(StopTheme.TEXTO);
             painelCategorias.add(lblCat, gbc);
 
             gbc.gridx = 1; gbc.weightx = 0.7;
             JTextField txt = new JTextField();
+            StopTheme.estilizarCampo(txt);
             txt.setFont(new Font("Arial", Font.PLAIN, 14));
             camposRespostas.put(cat, txt);
             txt.getDocument().addDocumentListener(new DocumentListener() {
@@ -724,6 +758,8 @@ public class StopGameUI extends JFrame {
             return;
         }
 
+        salvarServidorPreferido(host, porta);
+
         btnCriarSala.setEnabled(false);
 
         new Thread(() -> {
@@ -786,6 +822,8 @@ public class StopGameUI extends JFrame {
             );
             return;
         }
+
+        salvarServidorPreferido(host, porta);
 
         btnAtualizarSalas.setEnabled(false);
         lblStatusLobby.setText("Buscando salas...");
@@ -947,6 +985,8 @@ public class StopGameUI extends JFrame {
             return;
         }
 
+        salvarServidorPreferido(host, porta);
+
         btnEditarSala.setEnabled(false);
 
         new Thread(() -> {
@@ -1001,6 +1041,11 @@ public class StopGameUI extends JFrame {
                 && tokensSalasCriadas.containsKey(salaSelecionada.getIdSala());
 
         btnEditarSala.setEnabled(possoEditar);
+    }
+
+    private void salvarServidorPreferido(String host, int porta) {
+        PREFERENCIAS.put("servidor.host", host.trim());
+        PREFERENCIAS.putInt("servidor.porta", porta);
     }
 
     public static void main(String[] args) {
