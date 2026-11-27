@@ -824,10 +824,172 @@ public class StopGameUI extends JFrame {
     }
 
     private void acaoEditarSala() {
-        JOptionPane.showMessageDialog(
-                this,
-                "O formulário de edição será adicionado na próxima etapa."
+        SalaDisponivel sala = (SalaDisponivel) comboSalas.getSelectedItem();
+
+        if (sala == null) {
+            return;
+        }
+
+        String tokenCriador = tokensSalasCriadas.get(sala.getIdSala());
+        if (tokenCriador == null) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Você não tem permissão para editar esta sala.",
+                    "Edição não autorizada",
+                    JOptionPane.WARNING_MESSAGE
+            );
+            return;
+        }
+
+        JTextField campoNome = new JTextField(sala.getNomeSala());
+        JTextField campoCategorias =
+                new JTextField(String.join(", ", sala.getCategoriasList()));
+        JSpinner campoRodadas = new JSpinner(
+                new SpinnerNumberModel(sala.getTotalRodadas(), 1, 26, 1)
         );
+
+        JPanel painelDados = new JPanel(new GridLayout(0, 2, 8, 8));
+        painelDados.add(new JLabel("Nome da sala:"));
+        painelDados.add(campoNome);
+        painelDados.add(new JLabel("Categorias (separadas por vírgula):"));
+        painelDados.add(campoCategorias);
+        painelDados.add(new JLabel("Quantidade de rodadas:"));
+        painelDados.add(campoRodadas);
+
+        Set<String> letrasAtuais =
+                new HashSet<>(sala.getLetrasHabilitadasList());
+
+        JPanel painelLetras = new JPanel(new GridLayout(0, 7, 5, 5));
+        JCheckBox[] caixasLetras = new JCheckBox[26];
+
+        for (int i = 0; i < 26; i++) {
+            String letra = String.valueOf((char) ('A' + i));
+            caixasLetras[i] = new JCheckBox(letra, letrasAtuais.contains(letra));
+            painelLetras.add(caixasLetras[i]);
+        }
+
+        JPanel formulario = new JPanel(new BorderLayout(8, 8));
+        formulario.add(painelDados, BorderLayout.NORTH);
+        formulario.add(
+                new JScrollPane(painelLetras),
+                BorderLayout.CENTER
+        );
+
+        int resultado = JOptionPane.showConfirmDialog(
+                this,
+                formulario,
+                "Editar sala",
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.PLAIN_MESSAGE
+        );
+
+        if (resultado != JOptionPane.OK_OPTION) {
+            return;
+        }
+
+        String nomeNovo = campoNome.getText().trim();
+        if (nomeNovo.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Informe um nome para a sala.");
+            return;
+        }
+
+        List<String> categorias = Arrays.stream(campoCategorias.getText().split(","))
+                .map(String::trim)
+                .filter(valor -> !valor.isEmpty())
+                .toList();
+
+        List<String> letras = new ArrayList<>();
+        for (JCheckBox caixa : caixasLetras) {
+            if (caixa.isSelected()) {
+                letras.add(caixa.getText());
+            }
+        }
+
+        int totalRodadas = (Integer) campoRodadas.getValue();
+
+        if (categorias.isEmpty()) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Informe pelo menos uma categoria.",
+                    "Configuração inválida",
+                    JOptionPane.WARNING_MESSAGE
+            );
+            return;
+        }
+
+        if (letras.isEmpty()) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Selecione pelo menos uma letra.",
+                    "Configuração inválida",
+                    JOptionPane.WARNING_MESSAGE
+            );
+            return;
+        }
+
+        if (totalRodadas > letras.size()) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "A quantidade de rodadas não pode exceder o número de letras selecionadas.",
+                    "Configuração inválida",
+                    JOptionPane.WARNING_MESSAGE
+            );
+            return;
+        }
+
+        String host = txtHost.getText().trim();
+        int porta;
+
+        try {
+            porta = Integer.parseInt(txtPorta.getText().trim());
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(this, "Informe uma porta válida.");
+            return;
+        }
+
+        btnEditarSala.setEnabled(false);
+
+        new Thread(() -> {
+            GameGrpcClient clienteTemporario = new GameGrpcClient(host, porta);
+
+            try {
+                EditarSalaResponse resposta = clienteTemporario.editarSala(
+                        sala.getIdSala(),
+                        tokenCriador,
+                        nomeNovo,
+                        categorias,
+                        totalRodadas,
+                        letras
+                );
+
+                SwingUtilities.invokeLater(() -> {
+                    if (resposta.getSucesso()) {
+                        JOptionPane.showMessageDialog(this, "Sala atualizada.");
+                        acaoAtualizarSalas();
+                    } else {
+                        btnEditarSala.setEnabled(true);
+                        JOptionPane.showMessageDialog(
+                                this,
+                                resposta.getMensagem(),
+                                "Não foi possível editar a sala",
+                                JOptionPane.WARNING_MESSAGE
+                        );
+                    }
+                });
+            } catch (Exception e) {
+                SwingUtilities.invokeLater(() -> {
+                    btnEditarSala.setEnabled(true);
+                    JOptionPane.showMessageDialog(
+                            this,
+                            "Falha ao editar a sala: " + e.getMessage(),
+                            "Erro de conexão",
+                            JOptionPane.ERROR_MESSAGE
+                    );
+                });
+            } finally {
+                clienteTemporario.desconectar();
+            }
+        }).start();
     }
 
     private void atualizarDisponibilidadeEdicaoSala() {

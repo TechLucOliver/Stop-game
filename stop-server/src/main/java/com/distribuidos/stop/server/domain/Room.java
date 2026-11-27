@@ -46,7 +46,6 @@ public class Room {
     private volatile List<String> categorias;
     private final List<String> letrasDisponiveis;
 
-
     private final Map<String, Player> jogadores = new ConcurrentHashMap<>();
     private final List<RoomListener> listeners = new CopyOnWriteArrayList<>();
     private final StopLockManeger lockManeger = new StopLockManeger();
@@ -56,6 +55,7 @@ public class Room {
 
     private final AtomicReference<GameState> estadoAtual = new AtomicReference<>(GameState.LOBBY);
     private volatile Round rodadaAtual;
+    private volatile List<String> letrasHabilitadas;
     private int contadorRodadas = 0;
 
     /**
@@ -100,8 +100,9 @@ public class Room {
 
         this.totalRodadas = config.getTotalRodadas();
         this.categorias = config.getCategorias();
+        this.letrasHabilitadas = config.getLetrasDisponiveis();
         this.letrasDisponiveis = Collections.synchronizedList(
-                new ArrayList<>(config.getLetrasDisponiveis())
+                new ArrayList<>(this.letrasHabilitadas)
         );
     }
 
@@ -386,12 +387,25 @@ public class Room {
 
         this.totalRodadas = config.getTotalRodadas();
         this.categorias = config.getCategorias();
+        this.letrasHabilitadas = config.getLetrasDisponiveis();
 
         synchronized (letrasDisponiveis) {
             letrasDisponiveis.clear();
-            letrasDisponiveis.addAll(config.getLetrasDisponiveis());
+            letrasDisponiveis.addAll(this.letrasHabilitadas);
         }
 
         return true;
+    }
+
+    public int getTotalRodadas() {
+        return totalRodadas;
+    }
+
+    public List<String> getCategorias() {
+        return categorias;
+    }
+
+    public List<String> getLetrasHabilitadas() {
+        return letrasHabilitadas;
     }
 }

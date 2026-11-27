@@ -147,11 +147,16 @@ public class StopGameServiceImpl extends StopGameServiceGrpc.StopGameServiceImpl
         ListarSalasResponse.Builder resposta = ListarSalasResponse.newBuilder();
 
         for (RoomManager.Sala sala : roomManager.listarSalas()) {
+            Room roomDaSala = sala.getRoom();
+
             resposta.addSalas(SalaDisponivel.newBuilder()
                     .setIdSala(sala.getId())
                     .setNomeSala(sala.getNome())
                     .setJogadoresConectados(sala.getJogadoresConectados())
                     .setEstado(sala.getEstado())
+                    .addAllCategorias(roomDaSala.getCategorias())
+                    .setTotalRodadas(roomDaSala.getTotalRodadas())
+                    .addAllLetrasHabilitadas(roomDaSala.getLetrasHabilitadas())
                     .build());
         }
 
